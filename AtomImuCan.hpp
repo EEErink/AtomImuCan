@@ -14,13 +14,14 @@ depends: []
 === END MANIFEST === */
 // clang-format on
 
-
 #include <utility>
+
 #include "message.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+
 #include "app_framework.hpp"
 #include "can.hpp"
 #include "libxr_type.hpp"
@@ -63,7 +64,6 @@ typedef struct __attribute__((packed)) {
 
 class AtomImuCan : public LibXR::Application {
  public:
-
   /*陀螺仪参数*/
   struct Param {
     uint16_t can_id;
@@ -89,7 +89,6 @@ class AtomImuCan : public LibXR::Application {
     float q3 = 0.0f;
   };
 
-
   struct Feedback {
     Vector3 accl;
     Vector3 accl_abs;
@@ -106,18 +105,21 @@ class AtomImuCan : public LibXR::Application {
    * @param app
    * @param param 陀螺仪参数 (CANID CanBusName 名称前缀)
    */
- AtomImuCan(LibXR::HardwareContainer& hw, LibXR::ApplicationManager& app,
-      Param&& param)
-    : param_(std::forward<Param>(param)), feedback_{},
-      atomimu_eulr_topic_("atomimu_eulr",sizeof(feedback_.eulr)),
-      atomimu_absaccl_topic_("atomimu_absaccl",sizeof(feedback_.accl_abs)),
-      atomimu_gyro_topic_("atomimu_gyro",sizeof(feedback_.gyro)),
-      can_(hw.template FindOrExit<LibXR::CAN>({param_.can_bus_name})) {
+  AtomImuCan(LibXR::HardwareContainer& hw, LibXR::ApplicationManager& app,
+             Param&& param)
+      : param_(std::forward<Param>(param)),
+        feedback_{},
+        atomimu_eulr_topic_("atomimu_eulr", sizeof(feedback_.eulr)),
+        atomimu_absaccl_topic_("atomimu_absaccl", sizeof(feedback_.accl_abs)),
+        atomimu_gyro_topic_("atomimu_gyro", sizeof(feedback_.gyro)),
+        can_(hw.template FindOrExit<LibXR::CAN>({param_.can_bus_name})) {
     UNUSED(app);
 
     auto rx_callback = LibXR::CAN::Callback::Create(
         [](bool in_isr, AtomImuCan* self, const LibXR::CAN::ClassicPack& pack) {
-            RxCallback(in_isr, self, pack);}, this);
+          RxCallback(in_isr, self, pack);
+        },
+        this);
 
     can_->Register(rx_callback, LibXR::CAN::Type::STANDARD,
                    LibXR::CAN::FilterMode::ID_RANGE,
@@ -145,7 +147,7 @@ static void ThreadFunction(AtomImuCan *atomimu){
     atomimu->atomimu_gyro_topic_.Publish(atomimu->feedback_.gyro);
       LibXR::Thread::SleepUntil(last_time,2);
     }
-}
+  }
 
 
   void Decode(const LibXR::CAN::ClassicPack& pack) {
@@ -153,9 +155,12 @@ static void ThreadFunction(AtomImuCan *atomimu){
     switch (packet_type) {
       case CAN_PACK_ID_ACCL: {
         const CanData3* can_data = reinterpret_cast<const CanData3*>(pack.data);
-        feedback_.accl.x = DecodeFloat21(can_data->data1_unsigned, -24.0f, 24.0f);
-        feedback_.accl.y = DecodeFloat21(can_data->data2_unsigned, -24.0f, 24.0f);
-        feedback_.accl.z = DecodeFloat21(can_data->data3_unsigned, -24.0f, 24.0f);
+        feedback_.accl.x =
+            DecodeFloat21(can_data->data1_unsigned, -24.0f, 24.0f);
+        feedback_.accl.y =
+            DecodeFloat21(can_data->data2_unsigned, -24.0f, 24.0f);
+        feedback_.accl.z =
+            DecodeFloat21(can_data->data3_unsigned, -24.0f, 24.0f);
         break;
       }
 
@@ -163,9 +168,12 @@ static void ThreadFunction(AtomImuCan *atomimu){
         const CanData3* can_data = reinterpret_cast<const CanData3*>(pack.data);
         float min_gyro = -2000.0f * M_PI / 180.0f;
         float max_gyro = 2000.0f * M_PI / 180.0f;
-        feedback_.gyro.x = DecodeFloat21(can_data->data1_unsigned, min_gyro, max_gyro);
-        feedback_.gyro.y = DecodeFloat21(can_data->data2_unsigned, min_gyro, max_gyro);
-        feedback_.gyro.z = DecodeFloat21(can_data->data3_unsigned, min_gyro, max_gyro);
+        feedback_.gyro.x =
+            DecodeFloat21(can_data->data1_unsigned, min_gyro, max_gyro);
+        feedback_.gyro.y =
+            DecodeFloat21(can_data->data2_unsigned, min_gyro, max_gyro);
+        feedback_.gyro.z =
+            DecodeFloat21(can_data->data3_unsigned, min_gyro, max_gyro);
         break;
       }
 
@@ -190,10 +198,13 @@ static void ThreadFunction(AtomImuCan *atomimu){
         break;
       }
       default:
-       break;
+        break;
     }
   }
 
+  /*去除重力加速度*/
+  void CalcAbsAccl() {
+    float gravity_b[3];
 
 /*去除重力加速度*/
 void CalcAbsAccl()
@@ -343,7 +354,6 @@ void CalcEulr() {
     return min + norm * (max - min);
   }
 
-
   static float DecodeInt16Normalized(int16_t value) {
     return static_cast<float>(value) / static_cast<float>(INT16_MAX);
   }
@@ -365,7 +375,8 @@ float InvSqrtf(float x) {
    * @param self
    * @param pack 接收到的 CAN 数据包
    */
-  static void RxCallback(bool in_isr, AtomImuCan* self, const LibXR::CAN::ClassicPack& pack) {
+  static void RxCallback(bool in_isr, AtomImuCan* self,
+                         const LibXR::CAN::ClassicPack& pack) {
     UNUSED(in_isr);
       self->Decode(pack);
       self->feedback_.online = true;
@@ -388,5 +399,4 @@ float InvSqrtf(float x) {
   LibXR::Topic atomimu_gyro_topic_;
   LibXR::CAN* can_;
   LibXR::Thread thread_;
-
 };
